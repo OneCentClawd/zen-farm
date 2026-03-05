@@ -29,16 +29,21 @@ export class PlantHealthManager {
     this.checkWaterStress(plant, config, soil, days);
     this.checkLightStress(plant, config, weather, days);
     
-    // 2. 恢复机制（条件良好时）
+    // 2. 樱花春化检查
+    if (config.needsVernalization) {
+      this.checkVernalization(plant, config, weather, days);
+    }
+    
+    // 3. 恢复机制（条件良好时）
     this.checkRecovery(plant, config, weather, soil, days);
     
-    // 3. 更新健康状态
+    // 4. 更新健康状态
     this.updateHealthState(plant);
     
-    // 4. 更新生长进度（受健康影响）
+    // 5. 更新生长进度（受健康影响）
     this.updateGrowth(plant, config, hours);
     
-    // 5. 检查自然死亡（寿命）
+    // 6. 检查自然死亡（寿命）
     this.checkLifespan(plant, config);
     
     return plant;
@@ -126,6 +131,38 @@ export class PlantHealthManager {
   }
   
   /**
+   * 检查春化（樱花专用）
+   * 樱花需要经历一段低温期才能开花
+   */
+  private checkVernalization(plant: PlantInstance, config: PlantConfig, weather: WeatherData, days: number) {
+    if (!config.needsVernalization || !config.vernalizationTemp || !config.vernalizationDays) {
+      return;
+    }
+    
+    // 初始化春化进度
+    if (plant.vernalizationProgress === undefined) {
+      plant.vernalizationProgress = 0;
+    }
+    
+    // 检查是否在春化温度以下
+    if (weather.temperature <= config.vernalizationTemp) {
+      // 累积春化天数
+      plant.vernalizationProgress += days;
+      
+      // 春化完成
+      if (plant.vernalizationProgress >= config.vernalizationDays) {
+        console.log('🌸 樱花春化完成，可以开花了！');
+      }
+    } else {
+      // 温度过高，春化进度缓慢消退（但不会完全重置）
+      // 这模拟了"需要持续低温"的特性
+      if (weather.temperature > config.tempMax * 0.8) {
+        plant.vernalizationProgress = Math.max(0, plant.vernalizationProgress - days * 0.2);
+      }
+    }
+  }
+  
+  /**
    * 恢复机制
    */
   private checkRecovery(plant: PlantInstance, config: PlantConfig, weather: WeatherData, soil: SoilManager, days: number) {
@@ -174,6 +211,18 @@ export class PlantHealthManager {
     if (plant.healthState === HealthState.MODERATE_DAMAGE) growthRate = 0.3;
     if (plant.healthState === HealthState.SEVERE_DAMAGE) growthRate = 0;
     
+    // 樱花特殊处理：未完成春化时，生长进度卡在 70%（成长期）
+    if (config.needsVernalization && config.vernalizationDays) {
+      const vernProgress = plant.vernalizationProgress || 0;
+      if (vernProgress < config.vernalizationDays) {
+        // 春化未完成，最多长到 70%
+        if (plant.growthProgress >= 0.7) {
+          // 已经到达成长期上限，停止生长
+          return;
+        }
+      }
+    }
+    
     // 计算生长进度
     const daysElapsed = hours / 24;
     const progressPerDay = 1 / config.growthDays;
@@ -181,13 +230,13 @@ export class PlantHealthManager {
     plant.growthProgress = Math.min(1, plant.growthProgress);
     
     // 更新生长阶段
-    this.updateGrowthStage(plant);
+    this.updateGrowthStage(plant, config);
   }
   
   /**
    * 更新生长阶段
    */
-  private updateGrowthStage(plant: PlantInstance) {
+  private updateGrowthStage(plant: PlantInstance, config: PlantConfig) {
     const progress = plant.growthProgress;
     
     if (plant.healthState === HealthState.DEAD) {
@@ -195,6 +244,15 @@ export class PlantHealthManager {
     } else if (plant.healthState === HealthState.SEVERE_DAMAGE) {
       plant.growthStage = GrowthStage.AGING;
     } else if (progress >= 1) {
+      // 樱花特殊：需要春化才能开花（成熟）
+      if (config.needsVernalization && config.vernalizationDays) {
+        const vernProgress = plant.vernalizationProgress || 0;
+        if (vernProgress < config.vernalizationDays) {
+          // 春化未完成，卡在成长期
+          plant.growthStage = GrowthStage.GROWING;
+          return;
+        }
+      }
       plant.growthStage = GrowthStage.MATURE;
     } else if (progress >= 0.7) {
       plant.growthStage = GrowthStage.GROWING;
@@ -272,6 +330,39 @@ export class PlantHealthManager {
       case HealthState.MODERATE_DAMAGE: return '明显受损';
       case HealthState.SEVERE_DAMAGE: return '严重衰弱';
       case HealthState.DEAD: return '已枯死';
+    }
+  }
+  
+  /**
+   * 获取春化状态（樱花专用）
+   */
+  getVernalizationStatus(plant: PlantInstance): { progress: number; required: number; completed: boolean } | null {
+    const config = PLANT_CONFIGS[plant.type];
+    
+    if (!config.needsVernalization || !config.vernalizationDays) {
+      return null;
+    }
+    
+    const progress = plant.vernalizationProgress || 0;
+    return {
+      progress,
+      required: config.vernalizationDays,
+      completed: progress >= config.vernalizationDays,
+    };
+  }
+  
+  /**
+   * 获取春化状态描述
+   */
+  getVernalizationDescription(plant: PlantInstance): string {
+    const status = this.getVernalizationStatus(plant);
+    if (!status) return '';
+    
+    if (status.completed) {
+      return '🌸 春化完成，可以开花';
+    } else {
+      const percent = Math.floor((status.progress / status.required) * 100);
+      return `❄️ 春化中 ${percent}% (需${status.required}天低温)`;
     }
   }
 }

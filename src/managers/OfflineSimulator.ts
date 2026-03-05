@@ -137,20 +137,33 @@ export class OfflineSimulator {
     lines.push(`🔄 离线补算完成（${result.daysSimulated}天）`);
     lines.push('');
     
+    // 离线期间无人浇水提示
+    lines.push(`💧 离线期间无人浇水`);
+    lines.push(`   土壤湿度: ${result.soil.moisture.toFixed(0)}%`);
+    
     // 天气概况
     let rainyDays = 0;
     let hotDays = 0;
     let coldDays = 0;
+    let totalPrecipitation = 0;
     
     for (const log of result.weatherLog) {
-      if (log.weather.precipitation > 0) rainyDays++;
+      if (log.weather.precipitation > 0) {
+        rainyDays++;
+        totalPrecipitation += log.weather.precipitation;
+      }
       if (log.weather.temperature > config.tempMax) hotDays++;
       if (log.weather.temperature < config.tempMin) coldDays++;
     }
     
-    lines.push(`☁️ 天气概况: ${rainyDays}天下雨`);
-    if (hotDays > 0) lines.push(`🌡️ 高温天数: ${hotDays}天`);
-    if (coldDays > 0) lines.push(`❄️ 低温天数: ${coldDays}天`);
+    lines.push('');
+    if (rainyDays > 0) {
+      lines.push(`🌧️ ${rainyDays}天下雨，降水${totalPrecipitation.toFixed(0)}mm`);
+    } else {
+      lines.push(`☀️ 这段时间没有下雨`);
+    }
+    if (hotDays > 0) lines.push(`🌡️ ${hotDays}天高温`);
+    if (coldDays > 0) lines.push(`❄️ ${coldDays}天低温`);
     lines.push('');
     
     // 健康变化
@@ -159,9 +172,9 @@ export class OfflineSimulator {
     const healthChange = lastLog.healthAfter - firstLog.healthBefore;
     
     if (healthChange >= 0) {
-      lines.push(`💚 健康值: ${firstLog.healthBefore.toFixed(0)}% → ${lastLog.healthAfter.toFixed(0)}% (+${healthChange.toFixed(0)})`);
+      lines.push(`💚 健康: ${firstLog.healthBefore.toFixed(0)}% → ${lastLog.healthAfter.toFixed(0)}%`);
     } else {
-      lines.push(`💔 健康值: ${firstLog.healthBefore.toFixed(0)}% → ${lastLog.healthAfter.toFixed(0)}% (${healthChange.toFixed(0)})`);
+      lines.push(`💔 健康: ${firstLog.healthBefore.toFixed(0)}% → ${lastLog.healthAfter.toFixed(0)}% (${healthChange.toFixed(0)})`);
     }
     
     // 状态总结
