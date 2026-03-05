@@ -1,6 +1,6 @@
 /**
  * 天气管理器 - 接入 Open-Meteo API
- * 获取用户当地真实天气数据
+ * 获取用户当地真实天气数据，包括历史天气用于离线补算
  */
 
 export interface WeatherData {
@@ -11,6 +11,7 @@ export interface WeatherData {
   isDay: boolean;           // 是否白天
   sunlight: number;         // 日照强度 0-1
   updatedAt: number;        // 更新时间戳
+  date?: string;            // 日期 YYYY-MM-DD（历史天气用）
 }
 
 /**
@@ -108,8 +109,12 @@ export class WeatherManager {
     this.longitude = lon;
   }
   
+  getLocation() {
+    return { lat: this.latitude, lon: this.longitude };
+  }
+  
   /**
-   * 从 Open-Meteo 获取天气数据
+   * 从 Open-Meteo 获取当前天气
    */
   async fetchWeather(): Promise<WeatherData> {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${this.latitude}&longitude=${this.longitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,is_day&timezone=auto`;
@@ -133,15 +138,57 @@ export class WeatherManager {
       return this.currentWeather;
     } catch (error) {
       console.error('获取天气失败:', error);
-      // 返回默认天气
       return this.getDefaultWeather();
+    }
+  }
+  
+  /**
+   * 获取历史天气（用于离线补算）
+   * @param startDate 开始日期 YYYY-MM-DD
+   * @param endDate 结束日期 YYYY-MM-DD
+   * @returns 每天的天气数据数组
+   */
+  async fetchHistoricalWeather(startDate: string, endDate: string): Promise<WeatherData[]> {
+    // Open-Meteo Archive API (免费)
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${this.latitude}&longitude=${this.longitude}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_mean,relative_humidity_2m_mean,precipitation_sum,weather_code&timezone=auto`;
+    
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (!data.daily || !data.daily.time) {
+        console.warn('历史天气数据格式错误');
+        return [];
+      }
+      
+      const results: WeatherData[] = [];
+      const { time, temperature_2m_mean, relative_humidity_2m_mean, precipitation_sum, weather_code } = data.daily;
+      
+      for (let i = 0; i < time.length; i++) {
+        const code = weather_code[i] || 0;
+        results.push({
+          date: time[i],
+          temperature: temperature_2m_mean[i] ?? 20,
+          humidity: relative_humidity_2m_mean[i] ?? 60,
+          precipitation: precipitation_sum[i] ?? 0,
+          weatherCode: code,
+          isDay: true, // 日均数据，默认白天
+          sunlight: WEATHER_SUNLIGHT[code] ?? 0.5,
+          updatedAt: Date.now(),
+        });
+      }
+      
+      return results;
+    } catch (error) {
+      console.error('获取历史天气失败:', error);
+      return [];
     }
   }
   
   /**
    * 默认天气（离线或获取失败时使用）
    */
-  private getDefaultWeather(): WeatherData {
+  getDefaultWeather(): WeatherData {
     return {
       temperature: 20,
       humidity: 60,
@@ -181,8 +228,14 @@ export class WeatherManager {
    */
   isPrecipitating(): boolean {
     const weather = this.getCurrentWeather();
-    // 降水天气代码: 51-99
     return weather.weatherCode >= 51;
+  }
+  
+  /**
+   * 格式化日期为 YYYY-MM-DD
+   */
+  static formatDate(date: Date): string {
+    return date.toISOString().split('T')[0];
   }
 }
 

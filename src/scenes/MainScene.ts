@@ -3,6 +3,8 @@ import { PlantType, PlantInstance, PLANT_CONFIGS, GrowthStage, HealthState } fro
 import { weatherManager, WeatherData } from '../managers/WeatherManager';
 import { SoilManager } from '../managers/SoilManager';
 import { plantHealthManager } from '../managers/PlantHealthManager';
+import { gameStateManager, GameState } from '../managers/GameStateManager';
+import { offlineSimulator } from '../managers/OfflineSimulator';
 
 export class MainScene extends Phaser.Scene {
   // UI 元素
@@ -12,6 +14,7 @@ export class MainScene extends Phaser.Scene {
   private infoText!: Phaser.GameObjects.Text;
   private healthText!: Phaser.GameObjects.Text;
   private progressBar!: Phaser.GameObjects.Graphics;
+  private notificationText!: Phaser.GameObjects.Text;
   
   // 游戏数据
   private currentPlant: PlantInstance | null = null;
@@ -28,11 +31,48 @@ export class MainScene extends Phaser.Scene {
     // 初始化管理器
     this.soilManager = new SoilManager();
     
-    // 获取天气
-    this.weather = await weatherManager.fetchWeather();
+    // 尝试加载存档
+    const savedState = gameStateManager.load();
     
-    // 创建初始植物
-    this.currentPlant = plantHealthManager.createPlant(PlantType.CLOVER);
+    if (savedState && savedState.plant) {
+      // 有存档，进行离线补算
+      console.log('📂 检测到存档，进行离线补算...');
+      
+      // 恢复位置
+      if (savedState.location) {
+        weatherManager.setLocation(savedState.location.lat, savedState.location.lon);
+      }
+      
+      // 恢复土壤状态
+      this.soilManager.loadState(savedState.soil);
+      
+      // 进行离线补算
+      const result = await offlineSimulator.simulate(
+        savedState.plant,
+        this.soilManager,
+        savedState.lastOnlineAt
+      );
+      
+      this.currentPlant = result.plant;
+      this.soilManager.loadState(result.soil);
+      
+      // 显示补算报告
+      const report = offlineSimulator.generateReport(result);
+      console.log(report);
+      
+      // 延迟显示通知
+      if (result.daysSimulated > 0) {
+        this.time.delayedCall(500, () => {
+          this.showNotification(report, 5000);
+        });
+      }
+    } else {
+      // 无存档，创建新植物
+      this.currentPlant = plantHealthManager.createPlant(PlantType.CLOVER);
+    }
+    
+    // 获取当前天气
+    this.weather = await weatherManager.fetchWeather();
     
     // 绘制 UI
     this.drawBackground();
@@ -40,18 +80,77 @@ export class MainScene extends Phaser.Scene {
     this.drawPlantArea();
     this.drawInfoPanel();
     this.drawButtons();
+    this.drawNotificationArea();
     
     // 更新显示
     this.updateDisplay();
     
+    // 定时保存（每30秒）
+    this.time.addEvent({
+      delay: 30000,
+      callback: () => this.saveGame(),
+      loop: true,
+    });
+    
     // 定时更新（每分钟模拟 1 小时游戏时间，仅测试用）
     this.time.addEvent({
-      delay: 60000, // 1 分钟
+      delay: 60000,
       callback: () => this.simulateTime(1),
       loop: true,
     });
     
+    // 初始保存
+    this.saveGame();
+    
     console.log('🌱 佛系种地 - 场景加载完成');
+  }
+  
+  /**
+   * 保存游戏
+   */
+  private saveGame() {
+    if (!this.currentPlant) return;
+    
+    const state: GameState = {
+      version: 1,
+      lastOnlineAt: Date.now(),
+      plant: this.currentPlant,
+      soil: this.soilManager.getState(),
+      location: weatherManager.getLocation(),
+    };
+    
+    gameStateManager.save(state);
+  }
+  
+  /**
+   * 绘制通知区域
+   */
+  private drawNotificationArea() {
+    const { width, height } = this.cameras.main;
+    
+    this.notificationText = this.add.text(width / 2, height / 2, '', {
+      fontSize: '14px',
+      color: '#ffffff',
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      padding: { x: 15, y: 10 },
+      align: 'center',
+      wordWrap: { width: width - 60 },
+    });
+    this.notificationText.setOrigin(0.5);
+    this.notificationText.setVisible(false);
+    this.notificationText.setDepth(100);
+  }
+  
+  /**
+   * 显示通知
+   */
+  private showNotification(text: string, duration: number = 3000) {
+    this.notificationText.setText(text);
+    this.notificationText.setVisible(true);
+    
+    this.time.delayedCall(duration, () => {
+      this.notificationText.setVisible(false);
+    });
   }
   
   /**
