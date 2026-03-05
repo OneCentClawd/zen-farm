@@ -38,7 +38,7 @@ if (isWxGame) {
     // 事件
     addEventListener: (type: string, listener: any, options?: any) => {
       if (type === 'touchstart' || type === 'touchmove' || type === 'touchend' || type === 'touchcancel') {
-        wx.onTouchStart && canvas.addEventListener(type, listener, options);
+        canvas.addEventListener && canvas.addEventListener(type, listener, options);
       }
     },
     removeEventListener: (type: string, listener: any) => {
@@ -73,16 +73,6 @@ if (isWxGame) {
       hash: '',
     },
     
-    // URL 支持
-    URL: class {
-      constructor(url: string) { return { href: url }; }
-    },
-    
-    // Blob 支持
-    Blob: class {
-      constructor(parts: any[], options?: any) { return {}; }
-    },
-    
     // Focus
     focus: () => {},
     scrollTo: () => {},
@@ -100,6 +90,12 @@ if (isWxGame) {
       },
     },
   };
+  
+  // 让 window 引用自己
+  mockWindow.window = mockWindow;
+  mockWindow.self = mockWindow;
+  mockWindow.top = mockWindow;
+  mockWindow.parent = mockWindow;
   
   // 模拟 document
   const mockDocument: any = {
@@ -138,29 +134,75 @@ if (isWxGame) {
     visibilityState: 'visible',
   };
   
+  mockWindow.document = mockDocument;
+  
   // 挂载到 GameGlobal（微信小游戏全局对象）
   if (typeof GameGlobal !== 'undefined') {
     GameGlobal.window = mockWindow;
     GameGlobal.document = mockDocument;
+    GameGlobal.canvas = canvas;
     GameGlobal.HTMLCanvasElement = canvas.constructor;
     GameGlobal.Image = wx.createImage().constructor;
     GameGlobal.HTMLImageElement = wx.createImage().constructor;
-    
-    // 让 window 引用自己
-    GameGlobal.window.window = GameGlobal.window;
-    GameGlobal.window.document = mockDocument;
-    GameGlobal.window.self = GameGlobal.window;
-    GameGlobal.window.top = GameGlobal.window;
-    GameGlobal.window.parent = GameGlobal.window;
   }
   
-  // 同时设置到 globalThis
-  (globalThis as any).window = mockWindow;
-  (globalThis as any).document = mockDocument;
-  (globalThis as any).HTMLCanvasElement = canvas.constructor;
-  (globalThis as any).Image = wx.createImage().constructor;
-  (globalThis as any).HTMLImageElement = wx.createImage().constructor;
-  (globalThis as any).canvas = canvas;
+  // 不要直接设置 globalThis.window，而是用 Object.defineProperty
+  // 如果 window 已存在且只读，就扩展它的属性
+  const target = typeof window !== 'undefined' ? window : globalThis;
+  
+  // 扩展现有 window 的属性（如果可以）
+  Object.keys(mockWindow).forEach(key => {
+    try {
+      if (!(key in target)) {
+        Object.defineProperty(target, key, {
+          value: mockWindow[key],
+          writable: true,
+          configurable: true,
+        });
+      }
+    } catch (e) {
+      // 某些属性可能无法设置，忽略
+    }
+  });
+  
+  // 设置 document
+  try {
+    if (typeof document === 'undefined') {
+      Object.defineProperty(globalThis, 'document', {
+        value: mockDocument,
+        writable: true,
+        configurable: true,
+      });
+    }
+  } catch (e) {}
+  
+  // 设置其他全局变量
+  try {
+    Object.defineProperty(globalThis, 'HTMLCanvasElement', {
+      value: canvas.constructor,
+      writable: true,
+      configurable: true,
+    });
+  } catch (e) {}
+  
+  try {
+    Object.defineProperty(globalThis, 'Image', {
+      value: wx.createImage().constructor,
+      writable: true,
+      configurable: true,
+    });
+  } catch (e) {}
+  
+  try {
+    Object.defineProperty(globalThis, 'HTMLImageElement', {
+      value: wx.createImage().constructor,
+      writable: true,
+      configurable: true,
+    });
+  } catch (e) {}
+  
+  // 导出 canvas 供入口文件使用
+  (globalThis as any).__wxCanvas = canvas;
 }
 
 export {};

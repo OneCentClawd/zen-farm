@@ -2,7 +2,7 @@
  * 微信小游戏入口
  */
 
-// 先加载适配器
+// 先加载适配器（必须在 Phaser 之前）
 import './adapters/wx-adapter';
 
 // 再加载 Phaser 和游戏
@@ -10,14 +10,15 @@ import Phaser from 'phaser';
 import { MainScene } from './scenes/MainScene';
 
 declare const wx: any;
-declare const canvas: any; // 适配器里创建的主画布
+declare const GameGlobal: any;
 
 // 获取系统信息
 const systemInfo = wx.getSystemInfoSync();
 
-// 使用适配器里创建的 canvas（这是微信的主画布）
-// 微信小游戏第一个 wx.createCanvas() 是主画布，会显示在屏幕上
-const mainCanvas = typeof canvas !== 'undefined' ? canvas : wx.createCanvas();
+// 获取适配器创建的主画布
+const mainCanvas = (globalThis as any).__wxCanvas || 
+                   (typeof GameGlobal !== 'undefined' && GameGlobal.canvas) ||
+                   wx.createCanvas();
 
 console.log('🌱 画布尺寸:', mainCanvas.width, 'x', mainCanvas.height);
 console.log('🌱 屏幕尺寸:', systemInfo.windowWidth, 'x', systemInfo.windowHeight);
@@ -37,14 +38,18 @@ const config: Phaser.Types.Core.GameConfig = {
     pixelArt: false,
   },
   audio: {
-    noAudio: true, // 暂时禁用音频
+    noAudio: true,
+  },
+  input: {
+    touch: true,
   },
 };
 
-// 创建游戏
 console.log('🌱 创建 Phaser 游戏...');
-const game = new Phaser.Game(config);
 
-console.log('🌱 佛系种地（微信小游戏）启动成功');
-
-export default game;
+try {
+  const game = new Phaser.Game(config);
+  console.log('🌱 佛系种地（微信小游戏）启动成功');
+} catch (e) {
+  console.error('🌱 Phaser 启动失败:', e);
+}
