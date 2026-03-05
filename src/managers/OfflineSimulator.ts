@@ -48,20 +48,13 @@ export class OfflineSimulator {
       };
     }
     
-    // 限制最多补算30天，避免API请求过大
+    // 限制最多补算30天，避免计算量过大
     const daysToSimulate = Math.min(daysOffline, 30);
     
-    // 计算日期范围
-    const startDate = new Date(lastOnlineAt);
-    const endDate = new Date(now - msPerDay); // 到昨天，今天用实时天气
+    console.log(`🔄 离线补算: ${daysToSimulate}天`);
     
-    const startStr = WeatherManager.formatDate(startDate);
-    const endStr = WeatherManager.formatDate(endDate);
-    
-    console.log(`🔄 离线补算: ${startStr} ~ ${endStr} (${daysToSimulate}天)`);
-    
-    // 获取历史天气
-    let historicalWeather = await weatherManager.fetchHistoricalWeather(startStr, endStr);
+    // 获取历史天气（使用 past_days 参数）
+    let historicalWeather = await weatherManager.fetchHistoricalWeather(daysToSimulate);
     
     // 如果获取失败，用默认天气填充
     if (historicalWeather.length === 0) {
@@ -69,10 +62,13 @@ export class OfflineSimulator {
       historicalWeather = this.generateDefaultWeather(daysToSimulate);
     }
     
+    // 只取需要的天数（API可能返回更多）
+    const weatherToUse = historicalWeather.slice(-daysToSimulate);
+    
     // 按天模拟
     const weatherLog: SimulationResult['weatherLog'] = [];
     
-    for (const dayWeather of historicalWeather) {
+    for (const dayWeather of weatherToUse) {
       const healthBefore = plant.healthValue;
       
       // 更新土壤（每天24小时）

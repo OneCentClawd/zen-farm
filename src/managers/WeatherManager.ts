@@ -144,13 +144,15 @@ export class WeatherManager {
   
   /**
    * 获取历史天气（用于离线补算）
-   * @param startDate 开始日期 YYYY-MM-DD
-   * @param endDate 结束日期 YYYY-MM-DD
+   * 使用 past_days 参数获取过去N天的每日数据
+   * @param days 需要获取的天数（最多92天）
    * @returns 每天的天气数据数组
    */
-  async fetchHistoricalWeather(startDate: string, endDate: string): Promise<WeatherData[]> {
-    // Open-Meteo Archive API (免费)
-    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${this.latitude}&longitude=${this.longitude}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_mean,relative_humidity_2m_mean,precipitation_sum,weather_code&timezone=auto`;
+  async fetchHistoricalWeather(days: number): Promise<WeatherData[]> {
+    // 限制最多92天（Open-Meteo免费版限制）
+    const pastDays = Math.min(days, 92);
+    
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${this.latitude}&longitude=${this.longitude}&past_days=${pastDays}&daily=temperature_2m_mean,relative_humidity_2m_mean,precipitation_sum,weather_code&timezone=auto&forecast_days=0`;
     
     try {
       const response = await fetch(url);
