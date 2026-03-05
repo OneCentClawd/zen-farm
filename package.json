@@ -23,7 +23,8 @@
   "homepage": "https://github.com/OneCentClawd/zen-farm#readme",
   "dependencies": {
     "phaser": "^3.90.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "weapp-adapter": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
