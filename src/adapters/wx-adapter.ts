@@ -27,7 +27,7 @@ if (isWxGame) {
     clearInterval: clearInterval,
     requestAnimationFrame: requestAnimationFrame,
     cancelAnimationFrame: cancelAnimationFrame,
-    performance: { now: () => Date.now() },
+    performance: wx.getPerformance ? wx.getPerformance() : { now: () => Date.now() },
     screen: { width: systemInfo.windowWidth, height: systemInfo.windowHeight },
     navigator: { userAgent: 'wechat-minigame' },
     location: { href: '', protocol: 'https:', hostname: 'localhost' } as any,
