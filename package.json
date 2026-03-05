@@ -1,0 +1,33 @@
+{
+  "name": "zen-farm",
+  "version": "1.0.0",
+  "description": "一款真实模拟种植的微信小游戏。联动当地真实天气，按自然规律生长。",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OneCentClawd/zen-farm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/OneCentClawd/zen-farm/issues"
+  },
+  "homepage": "https://github.com/OneCentClawd/zen-farm#readme",
+  "dependencies": {
+    "phaser": "^3.90.0",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "ts-loader": "^9.5.4",
+    "webpack": "^5.105.4",
+    "webpack-cli": "^6.0.1"
+  }
+}
