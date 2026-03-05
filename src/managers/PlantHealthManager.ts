@@ -30,7 +30,7 @@ export class PlantHealthManager {
     this.checkLightStress(plant, config, weather, days);
     
     // 2. 恢复机制（条件良好时）
-    this.checkRecovery(plant, config, weather, soil);
+    this.checkRecovery(plant, config, weather, soil, days);
     
     // 3. 更新健康状态
     this.updateHealthState(plant);
@@ -78,6 +78,7 @@ export class PlantHealthManager {
   
   /**
    * 检查水分胁迫
+   * 伤害公式：超过耐受阈值后，每天造成固定伤害（不累积）
    */
   private checkWaterStress(plant: PlantInstance, config: PlantConfig, soil: SoilManager, days: number) {
     const moisture = soil.getMoisture();
@@ -86,9 +87,9 @@ export class PlantHealthManager {
     if (moisture < config.moistureMin) {
       plant.droughtDays += days;
       if (plant.droughtDays > config.droughtTolerance) {
-        // 超过耐旱极限，健康值下降
-        const severity = (plant.droughtDays - config.droughtTolerance) * 10;
-        plant.healthValue -= severity * days;
+        // 超过耐旱极限后，每天扣 10 点健康值
+        const damagePerDay = 10;
+        plant.healthValue -= damagePerDay * days;
       }
     } else {
       plant.droughtDays = Math.max(0, plant.droughtDays - days);
@@ -98,8 +99,9 @@ export class PlantHealthManager {
     if (moisture > config.moistureMax) {
       plant.floodDays += days;
       if (plant.floodDays > config.floodTolerance) {
-        const severity = (plant.floodDays - config.floodTolerance) * 15; // 涝害更致命
-        plant.healthValue -= severity * days;
+        // 超过耐涝极限后，每天扣 15 点健康值（涝害更致命）
+        const damagePerDay = 15;
+        plant.healthValue -= damagePerDay * days;
       }
     } else {
       plant.floodDays = Math.max(0, plant.floodDays - days);
@@ -126,7 +128,7 @@ export class PlantHealthManager {
   /**
    * 恢复机制
    */
-  private checkRecovery(plant: PlantInstance, config: PlantConfig, weather: WeatherData, soil: SoilManager) {
+  private checkRecovery(plant: PlantInstance, config: PlantConfig, weather: WeatherData, soil: SoilManager, days: number) {
     const temp = weather.temperature;
     const moisture = soil.getMoisture();
     
@@ -136,7 +138,7 @@ export class PlantHealthManager {
     
     if (tempOk && moistureOk && plant.healthValue < 100) {
       // 每天恢复 5 点健康值
-      plant.healthValue = Math.min(100, plant.healthValue + 5);
+      plant.healthValue = Math.min(100, plant.healthValue + 5 * days);
     }
   }
   
